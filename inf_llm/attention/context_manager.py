@@ -521,6 +521,7 @@ class ContextManager:
 
         if self.async_global_stream:
             torch.cuda.current_stream().wait_stream(GLOBAL_STREAM)
+            GLOBAL_STREAM.wait_stream(torch.cuda.current_stream())
 
         # calc global result
         attn.append(
@@ -535,7 +536,7 @@ class ContextManager:
         glb_score = score_list[1]
 
         if self.async_global_stream:
-            GLOBAL_STREAM.wait_stream(torch.cuda.current_stream())
+            torch.cuda.current_stream().wait_stream(GLOBAL_STREAM)
 
         # update global score
         with torch.cuda.stream(GLOBAL_STREAM):
@@ -712,7 +713,7 @@ class ContextManager:
         input_length = local_q.size(-2)
         
         if self.async_global_stream:
-            GLOBAL_STREAM.wait_stream(torch.cuda.current_stream())
+            torch.cuda.current_stream().wait_stream(GLOBAL_STREAM)
 
 
         # append local and global tensor

@@ -1,9 +1,10 @@
-torch>=1.13.1
+torch>=2.0.0
 transformers>=4.37.2
 fschat>=0.2.35
 datasets>=2.17.0
 omegaconf
 accelerate
+triton>=2.0.0
 
 # flash-attn
 

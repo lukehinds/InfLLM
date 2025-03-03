@@ -111,12 +111,10 @@ def _attn_fwd_inner(acc, l_i, m_i, q,
     return acc, l_i, m_i
 
 
-@triton.heuristics(
-    {
-        "IS_EVEN_M": lambda args: args["N_CTX"] % args["BLOCK_M"] == 0,
-        "IS_EVEN_N": lambda args: args["NKV_CTX"] % args["BLOCK_N"] == 0,
-    }
-)
+@triton.heuristics({
+    "IS_EVEN_M": lambda args: args["N_CTX"] % args["BLOCK_M"] == 0,
+    "IS_EVEN_N": lambda args: args["NKV_CTX"] % args["BLOCK_N"] == 0,
+})
 @triton.jit
 def _attn_fwd(Q, K, V, sm_scale, M, Out, L,#
               stride_qz, stride_qh, stride_qm, stride_qk,  #
@@ -222,12 +220,10 @@ def _attn_fwd(Q, K, V, sm_scale, M, Out, L,#
     tl.store(O_block_ptr, acc.to(Out.type.element_ty))
 
 
-@triton.heuristics(
-    {
-        "IS_EVEN_M": lambda args: args["N_CTX"] % args["BLOCK_M"] == 0,
-        "IS_EVEN_N": lambda args: args["NKV_CTX"] % args["BLOCK_N"] == 0,
-    }
-)
+@triton.heuristics({
+    "IS_EVEN_M": lambda args: args["N_CTX"] % args["BLOCK_M"] == 0,
+    "IS_EVEN_N": lambda args: args["NKV_CTX"] % args["BLOCK_N"] == 0,
+})
 @triton.jit
 def _score_kernel(
     Q, K, M, sm_scale, Out,

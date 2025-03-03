@@ -724,3 +724,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(args)
+
+def clean_memory():
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        # Add new PyTorch 2.0 memory management
+        torch.cuda.synchronize()

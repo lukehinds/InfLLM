@@ -8,6 +8,7 @@ import argparse
 from omegaconf import OmegaConf
 from inf_llm.utils import patch_hf, GreedySearch, patch_model_center
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import gc
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -18,6 +19,10 @@ def parse_args():
     parser.add_argument("--rank", type=int, default=None)
     parser.add_argument("--world_size", type=int, default=None)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--use_compile", action="store_true", 
+                       help="Use torch.compile() for PyTorch 2.0+")
+    parser.add_argument("--compile_mode", type=str, default="reduce-overhead",
+                       choices=["default", "reduce-overhead", "max-autotune"])
     args, extra_args = parser.parse_known_args()
     conf = OmegaConf.load(args.config_path)
     cli_conf = OmegaConf.from_cli(extra_args)
@@ -42,6 +47,7 @@ def parse_args():
 
 def get_model_and_tokenizer(config):
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_path)
+    
     if config.model_center:
         import bmtrain as bmt
         bmt.init_distributed(seed=233)
@@ -52,7 +58,20 @@ def get_model_and_tokenizer(config):
         bmt.load(model, os.path.join(config.path, "pytorch_model.pt"), strict=False)
         model = patch_model_center(model, config.type, **config)
     else:
-        model = AutoModelForCausalLM.from_pretrained(config.path, torch_dtype=torch.bfloat16, trust_remote_code=True, device_map="cuda")
+        model = AutoModelForCausalLM.from_pretrained(
+            config.path, 
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+            device_map="cuda",
+            # Add PyTorch 2.0+ optimizations
+            use_cache=True,
+            low_cpu_mem_usage=True
+        )
+        
+        if torch.__version__ >= "2.0.0":
+            # Optional: Use torch.compile() for better performance
+            model = torch.compile(model)
+            
         model = patch_hf(model, config.type, **config)
     return model, tokenizer
 
@@ -200,6 +219,13 @@ def get_pred(
     rank: int = None, world_size: int = None,
     verbose: bool = False
 ):
+    # Add memory cleanup
+    def cleanup_memory():
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()  # PyTorch 2.0+ memory management
+        gc.collect()
+
     preds = []
     data = list(data)
 
@@ -276,6 +302,9 @@ def get_pred(
             print("Answer:", json_obj["answers"])
             print("")
 
+        # Add periodic memory cleanup
+        if cur % 100 == 0:
+            cleanup_memory()
 
     return preds
 

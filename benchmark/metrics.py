@@ -9,6 +9,7 @@ import difflib
 from typing import List
 from collections import Counter
 from rouge import Rouge
+import torch
 
 def normalize_answer(s):
     """Lower text and remove punctuation, articles and extra whitespace."""
@@ -36,7 +37,7 @@ def normalize_zh_answer(s):
         return "".join(text.split())
 
     def remove_punc(text):
-        cn_punctuation = "！？｡。＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏."
+        cn_punctuation = "！？｡。＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘'‛""„‟…‧﹏."
         all_punctuation = set(string.punctuation + cn_punctuation)
         return "".join(ch for ch in text if ch not in all_punctuation)
 
@@ -115,6 +116,12 @@ def classification_score(prediction, ground_truth, **kwargs):
 def rouge_score(prediction, ground_truth, **kwargs):
     rouge = Rouge()
     try:
+        # Use memory_format optimization for PyTorch 2.0+
+        if torch.is_tensor(prediction):
+            prediction = prediction.contiguous(memory_format=torch.contiguous_format)
+        if torch.is_tensor(ground_truth):
+            ground_truth = ground_truth.contiguous(memory_format=torch.contiguous_format)
+            
         scores = rouge.get_scores([prediction], [ground_truth], avg=True)
     except:
         return 0.0
