@@ -72,6 +72,16 @@ def patch_hf(
         *args,
         **kwargs
     ):
+        hidden_states = kwargs.get('hidden_states', None)
+        attention_mask = kwargs.get('attention_mask', None)
+        position_ids = kwargs.get('position_ids', None)
+        use_cache = kwargs.get('use_cache', False)
+        output_attentions = kwargs.get('output_attentions', False)
+        output_hidden_states = kwargs.get('output_hidden_states', False)
+
+        if hidden_states is None:
+            hidden_states = args[0]
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -95,40 +105,37 @@ def patch_hf(
             if hasattr(self, "config") and hasattr(self.config, "scale_emb"):
                 inputs_embeds = inputs_embeds * self.config.scale_emb
 
-        if use_cache:
-            pkv = tuple()
-
-        else:
-            pkv = None
-            
-
-        hidden_states = inputs_embeds
+        present_key_values = [] if use_cache else None
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
-        all_self_attns = () if output_attentions else None
+        all_self_attentions = () if output_attentions else None
 
-        for i, decoder_layer in enumerate(self.layers):
-            if output_hidden_states:
-                all_hidden_states += (hidden_states,)
+        for idx, decoder_layer in enumerate(self.layers):
+            past_key_value = past_key_values[idx] if past_key_values is not None else None
 
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=attention_mask,
-                position_ids=self.position_bias,
-                past_key_value=past_key_values[i] if past_key_values is not None else None,
+                position_ids=position_ids,
+                past_key_value=past_key_value,
                 output_attentions=output_attentions,
                 use_cache=use_cache,
             )
 
-            hidden_states = layer_outputs[0]
+            # Handle layer outputs based on what was returned
+            if isinstance(layer_outputs, tuple):
+                hidden_states = layer_outputs[0]
+                if use_cache:
+                    present_key_values.append(layer_outputs[1])
+            else:
+                hidden_states = layer_outputs
 
-            if use_cache:
-                _cache = layer_outputs[2 if output_attentions else 1]
-                pkv = pkv + (_cache,)
+            if output_hidden_states:
+                all_hidden_states += (hidden_states,)
 
             if output_attentions:
-                all_self_attns += (layer_outputs[1],)
+                all_self_attentions += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
 
@@ -137,12 +144,12 @@ def patch_hf(
             all_hidden_states += (hidden_states,)
 
         if not return_dict:
-            return tuple(v for v in [hidden_states, pkv, all_hidden_states, all_self_attns] if v is not None)
+            return tuple(v for v in [hidden_states, present_key_values, all_hidden_states, all_self_attentions] if v is not None)
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
-            past_key_values=pkv,
+            past_key_values=present_key_values,
             hidden_states=all_hidden_states,
-            attentions=all_self_attns,
+            attentions=all_self_attentions,
         )
 
     forward = huggingface_forward(ATTN_FORWRAD[attn_type](**attn_kwargs))
