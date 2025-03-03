@@ -40,7 +40,11 @@ def huggingface_forward(forward):
             o = ret
             pkv = None
 
-        return o, None, pkv
+        # Mistral expects (hidden_states, None) or (hidden_states, None, past_key_value)
+        if use_cache:
+            return o, None, pkv
+        else:
+            return o, None
 
     return hf_forward
 
