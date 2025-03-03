@@ -13,12 +13,25 @@ def huggingface_forward(forward):
         **kwargs,
     ):
         assert not output_attentions
+        
+        # Get the correct attribute names based on model type
+        if hasattr(self, 'num_heads'):
+            num_heads = self.num_heads
+            num_key_value_heads = self.num_key_value_heads
+            head_dim = self.head_dim
+        else:
+            # Mistral uses different attribute names
+            num_heads = self.num_attention_heads
+            num_key_value_heads = self.num_key_value_groups
+            head_dim = self.head_dim
+            
         ret = forward(
             self, hidden_states, hidden_states,
             position_ids, use_cache, past_key_value,
             self.q_proj, self.k_proj, self.v_proj, self.o_proj, 
-            self.head_dim, self.num_heads, self.num_key_value_heads
+            head_dim, num_heads, num_key_value_heads
         )
+        
         if use_cache:
             o, pkv = ret
         else:
