@@ -137,23 +137,43 @@ def patch_hf(
     if isinstance(model, LlamaForCausalLM):
         Attention = model.model.layers[0].self_attn.__class__
         Model = model.model.__class__
+        rope_attr = 'rotary_emb'
     elif isinstance(model, MistralForCausalLM):
         Attention = model.model.layers[0].self_attn.__class__
         Model = model.model.__class__
+        rope_attr = 'rotary'
     elif isinstance(model, Qwen2ForCausalLM):
         Attention = model.model.layers[0].self_attn.__class__
         Model = model.model.__class__
+        rope_attr = 'rotary_emb'
     elif model.__class__.__name__ == "MiniCPMForCausalLM":
         Attention = model.model.layers[0].self_attn.__class__
         Model = model.model.__class__
+        rope_attr = 'rotary_emb'
     else:
         raise ValueError("Only supports llama, mistral and qwen2 models.")
 
-    hf_rope = model.model.layers[0].self_attn.rotary_emb 
-    base = base if base is not None else hf_rope.base
+    hf_rope = getattr(model.model.layers[0].self_attn, rope_attr)
+    
+    if hasattr(hf_rope, 'base'):
+        rope_base = hf_rope.base
+    elif hasattr(hf_rope, '_rope_scaling_factor'):
+        rope_base = 10000 * hf_rope._rope_scaling_factor
+    else:
+        rope_base = 10000
+        
+    if hasattr(hf_rope, 'dim'):
+        rope_dim = hf_rope.dim
+    elif hasattr(hf_rope, 'rotary_dim'):
+        rope_dim = hf_rope.rotary_dim
+    else:
+        rope_dim = model.config.hidden_size // model.config.num_attention_heads
+
+    base = base if base is not None else rope_base
     distance_scale = distance_scale if distance_scale is not None else 1.0
+    
     rope = RotaryEmbeddingESM(
-        hf_rope.dim,
+        rope_dim,
         base,
         distance_scale
     )
