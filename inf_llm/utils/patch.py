@@ -27,9 +27,18 @@ def huggingface_forward(forward):
             num_key_value_heads = config // self.num_key_value_groups
             head_dim = self.head_dim
             
+        # Get position bias from model
+        position_bias = getattr(self.model, 'position_bias', None)
+        if position_bias is None:
+            # Try to get from parent model
+            position_bias = getattr(self._get_model(), 'position_bias', None)
+            
+        if position_bias is None:
+            raise ValueError("Could not find position_bias in model")
+            
         ret = forward(
             self, hidden_states, hidden_states,
-            position_ids, use_cache, past_key_value,
+            position_bias, use_cache, past_key_value,  # Use position_bias instead of position_ids
             self.q_proj, self.k_proj, self.v_proj, self.o_proj, 
             head_dim, num_heads, num_key_value_heads
         )
@@ -40,6 +49,14 @@ def huggingface_forward(forward):
         else:
             return ret, None  # Return tuple for Mistral's unpacking
 
+    def _get_model(self):
+        """Helper to get parent model instance"""
+        for module in self.modules():
+            if hasattr(module, 'model'):
+                return module.model
+        return None
+
+    hf_forward._get_model = _get_model
     return hf_forward
 
 
