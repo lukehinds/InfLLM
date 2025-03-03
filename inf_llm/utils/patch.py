@@ -141,7 +141,7 @@ def patch_hf(
     elif isinstance(model, MistralForCausalLM):
         Attention = model.model.layers[0].self_attn.__class__
         Model = model.model.__class__
-        rope_attr = 'rotary'
+        rope_attr = 'rotary_pos_emb'
     elif isinstance(model, Qwen2ForCausalLM):
         Attention = model.model.layers[0].self_attn.__class__
         Model = model.model.__class__
@@ -155,6 +155,9 @@ def patch_hf(
 
     hf_rope = getattr(model.model.layers[0].self_attn, rope_attr)
     
+    if isinstance(model, MistralForCausalLM):
+        hf_rope = hf_rope.rotary_emb
+
     if hasattr(hf_rope, 'base'):
         rope_base = hf_rope.base
     elif hasattr(hf_rope, '_rope_scaling_factor'):
