@@ -27,14 +27,34 @@ def huggingface_forward(forward):
             num_key_value_heads = config // self.num_key_value_groups
             head_dim = self.head_dim
             
-        # Get position bias from model
-        position_bias = getattr(self.model, 'position_bias', None)
-        if position_bias is None:
-            # Try to get from parent model
-            position_bias = getattr(self._get_model(), 'position_bias', None)
+        # Get position bias by traversing up to find model
+        position_bias = None
+        current = self
+        while hasattr(current, '__dict__'):
+            if hasattr(current, 'position_bias'):
+                position_bias = current.position_bias
+                break
+            if not hasattr(current, '_modules'):
+                break
+            # Try to find parent module that has position_bias
+            for name, module in current._modules.items():
+                if hasattr(module, 'position_bias'):
+                    position_bias = module.position_bias
+                    break
+            if position_bias is not None:
+                break
+            # Move up to parent
+            if hasattr(current, '_parameters'):
+                # Get parent module
+                for parent, _ in current.named_modules():
+                    if parent:
+                        current = parent
+                        break
+            else:
+                break
             
         if position_bias is None:
-            raise ValueError("Could not find position_bias in model")
+            raise ValueError("Could not find position_bias in model hierarchy")
             
         ret = forward(
             self, hidden_states, hidden_states,
@@ -49,14 +69,6 @@ def huggingface_forward(forward):
         else:
             return ret, None  # Return tuple for Mistral's unpacking
 
-    def _get_model(self):
-        """Helper to get parent model instance"""
-        for module in self.modules():
-            if hasattr(module, 'model'):
-                return module.model
-        return None
-
-    hf_forward._get_model = _get_model
     return hf_forward
 
 
