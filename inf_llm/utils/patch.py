@@ -29,29 +29,27 @@ def huggingface_forward(forward):
             
         # Get position bias by traversing up to find model
         position_bias = None
-        current = self
-        while hasattr(current, '__dict__'):
-            if hasattr(current, 'position_bias'):
-                position_bias = current.position_bias
+        
+        # First try to find in root modules
+        for name, module in self.modules():
+            if hasattr(module, 'position_bias'):
+                position_bias = module.position_bias
                 break
-            if not hasattr(current, '_modules'):
+            # Check if module has model attribute with position_bias
+            if hasattr(module, 'model') and hasattr(module.model, 'position_bias'):
+                position_bias = module.model.position_bias
                 break
-            # Try to find parent module that has position_bias
-            for name, module in current._modules.items():
+            
+        if position_bias is None:
+            # Try to find in parent modules
+            for name, module in self.named_modules():
                 if hasattr(module, 'position_bias'):
                     position_bias = module.position_bias
                     break
-            if position_bias is not None:
-                break
-            # Move up to parent
-            if hasattr(current, '_parameters'):
-                # Get parent module
-                for parent, _ in current.named_modules():
-                    if parent:
-                        current = parent
-                        break
-            else:
-                break
+                # Check if module has model attribute with position_bias
+                if hasattr(module, 'model') and hasattr(module.model, 'position_bias'):
+                    position_bias = module.model.position_bias
+                    break
             
         if position_bias is None:
             raise ValueError("Could not find position_bias in model hierarchy")
