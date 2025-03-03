@@ -16,13 +16,15 @@ def huggingface_forward(forward):
         
         # Get the correct attribute names based on model type
         if hasattr(self, 'num_heads'):
+            # LLaMA style
             num_heads = self.num_heads
             num_key_value_heads = self.num_key_value_heads
             head_dim = self.head_dim
         else:
-            # Mistral uses different attribute names
-            num_heads = self.num_attention_heads
-            num_key_value_heads = self.num_key_value_groups
+            # Mistral style - get from config
+            config = self.q_proj.weight.shape[0] // self.head_dim
+            num_heads = config
+            num_key_value_heads = config // self.num_key_value_groups
             head_dim = self.head_dim
             
         ret = forward(
