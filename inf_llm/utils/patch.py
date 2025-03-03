@@ -72,22 +72,11 @@ def patch_hf(
         *args,
         **kwargs
     ):
-        hidden_states = kwargs.get('hidden_states', None)
-        attention_mask = kwargs.get('attention_mask', None)
-        position_ids = kwargs.get('position_ids', None)
-        use_cache = kwargs.get('use_cache', False)
-        output_attentions = kwargs.get('output_attentions', False)
-        output_hidden_states = kwargs.get('output_hidden_states', False)
-
-        if hidden_states is None:
-            hidden_states = args[0]
-
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         use_cache = use_cache if use_cache is not None else self.config.use_cache
-
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # retrieve input_ids and inputs_embeds
@@ -105,6 +94,7 @@ def patch_hf(
             if hasattr(self, "config") and hasattr(self.config, "scale_emb"):
                 inputs_embeds = inputs_embeds * self.config.scale_emb
 
+        hidden_states = inputs_embeds  # Set hidden_states from inputs_embeds
         present_key_values = [] if use_cache else None
 
         # decoder layers
