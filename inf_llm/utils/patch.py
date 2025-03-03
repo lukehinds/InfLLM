@@ -30,26 +30,26 @@ def huggingface_forward(forward):
         # Get position bias by traversing up to find model
         position_bias = None
         
-        # First try to find in root modules
-        for name, module in self.modules():
-            if hasattr(module, 'position_bias'):
-                position_bias = module.position_bias
+        # Try to find position_bias in the module hierarchy
+        current_module = self
+        while current_module is not None:
+            if hasattr(current_module, 'position_bias'):
+                position_bias = current_module.position_bias
                 break
-            # Check if module has model attribute with position_bias
-            if hasattr(module, 'model') and hasattr(module.model, 'position_bias'):
-                position_bias = module.model.position_bias
+            if hasattr(current_module, 'model') and hasattr(current_module.model, 'position_bias'):
+                position_bias = current_module.model.position_bias
                 break
-            
-        if position_bias is None:
-            # Try to find in parent modules
-            for name, module in self.named_modules():
-                if hasattr(module, 'position_bias'):
-                    position_bias = module.position_bias
-                    break
-                # Check if module has model attribute with position_bias
-                if hasattr(module, 'model') and hasattr(module.model, 'position_bias'):
-                    position_bias = module.model.position_bias
-                    break
+            # Move up to parent module if possible
+            if hasattr(current_module, '_modules'):
+                # Try to find parent module
+                parent = None
+                for name, mod in current_module._modules.items():
+                    if mod is current_module:
+                        parent = current_module._modules[name]
+                        break
+                current_module = parent
+            else:
+                current_module = None
             
         if position_bias is None:
             raise ValueError("Could not find position_bias in model hierarchy")
