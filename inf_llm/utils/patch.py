@@ -36,15 +36,9 @@ def huggingface_forward(forward):
         
         if use_cache:
             o, pkv = ret
+            return (o, pkv)  # Return tuple for Mistral's unpacking
         else:
-            o = ret
-            pkv = None
-
-        # Mistral expects (hidden_states, None) or (hidden_states, None, past_key_value)
-        if use_cache:
-            return o, None, pkv
-        else:
-            return o, None
+            return ret, None  # Return tuple for Mistral's unpacking
 
     return hf_forward
 
